@@ -1,0 +1,8 @@
+Build.PL
+Changes
+lib/Control/CLI.pm
+Makefile.PL
+MANIFEST
+META.yml
+README
+t/control-cli.t
