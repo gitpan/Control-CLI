@@ -2,12 +2,21 @@ package Control::CLI;
 
 use strict;
 use warnings;
+use Exporter qw(import);
 use Carp;
 use Term::ReadKey;
 use Time::HiRes;
 
 my $Package = "Control::CLI";
-our $VERSION = '1.00';
+our $VERSION = '1.01';
+our %EXPORT_TAGS = (
+		use	=> [qw(useTelnet useSsh useSerial)],
+		prompt	=> [qw(promptClear promptHide)],
+		args	=> [qw(parseMethodArgs suppressMethodArgs)],
+		_rest	=> [qw(passphraseRequired parse_errmode)],
+	);
+push @{$EXPORT_TAGS{all}}, @{$EXPORT_TAGS{$_}} foreach keys %EXPORT_TAGS;
+Exporter::export_ok_tags('all');
 
 ########################################### Global Class Variables ###########################################
 
@@ -284,9 +293,7 @@ sub new {
 	return $self;
 }
 
-#sub DESTROY {
-#	my $self = shift;
-#}
+sub DESTROY {} # Empty for now
 
 
 ############################################### Object methods ###############################################
@@ -2100,6 +2107,26 @@ Returns the stopbits setting used for the current serial connection; undef other
 =head1 CLASS METHODS
 
 Class Methods which are not tied to an object instance.
+By default the Control::CLI class does not import anything since it is object oriented.
+The following class methods should therefore be called using their fully qualified package name or else they can be expressly imported when loading this module:
+
+	# Import all class methods listed in this section
+	use Control::CLI (:all);
+
+	# Import useTelnet, useSsh & useSerial
+	use Control::CLI (:use);
+
+	# Import promptClear & promptHide
+	use Control::CLI (:prompt);
+
+	# Import arseMethodArgs suppressMethodArgs
+	use Control::CLI (:args);
+
+	# Import just passphraseRequired
+	use Control::CLI (passphraseRequired);
+
+	# Import just parse_errmode
+	use Control::CLI (parse_errmode);
 
 =over 4
 

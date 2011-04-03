@@ -2,6 +2,8 @@
 abstract: 'Command Line Interface I/O via any of Telnet, SSH or Serial port'
 author:
   - 'Ludovico Stevens <lstevens@cpan.org>'
+build_requires:
+  Net::Telnet: 0
 configure_requires:
   Module::Build: 0.36
 generated_by: 'Module::Build version 0.3624'
@@ -13,10 +15,10 @@ name: Control-CLI
 provides:
   Control::CLI:
     file: lib/Control/CLI.pm
-    version: 1.00
+    version: 1.01
 requires:
   Term::ReadKey: 0
   Time::HiRes: 0
 resources:
   license: http://dev.perl.org/licenses/
-version: 1.00
+version: 1.01

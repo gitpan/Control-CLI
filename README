@@ -1,8 +1,8 @@
-Conrol::CLI  -  Controlling a device by interacting with it's Command Line Interface(CLI)
+Control::CLI  -  Controlling a device by interacting with its Command Line Interface(CLI)
 =========================================================================================
 
 A Command Line Interface (CLI) is an interface where the user is presented with a command prompt and has to enter ASCII commands to drive or control or configure that device.
-That interface could be the shell on a unix system or some other command interpreter on a device such as an ethernet switch or an IP router or some kind of security appliance.
+That interface could be the shell on a Unix system or some other command interpreter on a device such as an ethernet switch or an IP router or some kind of security appliance.
 This module is useful to control/automate/script a remote device by interacting with its CLI interface remotely over any type of connection which can be used to reach the CLI interface of that remote device.
 Control::CLI supports any of Telnet, SSHv2 (using an interactive shell channel) and Serial Port connections.
 
@@ -26,14 +26,14 @@ This module was built using Module::Build.
 
 If you have Module::Build already installed, to install this module run the following commands:
 
-	perl Build.PL
+	perl Build.PL [TESTPORT=<DEVICE>]
 	./Build
 	./Build test
 	./Build install
 
 Or, if you're on a platform (like DOS or Windows) that doesn't require the "./" notation, you can do this:
 
-	perl Build.PL
+	perl Build.PL [TESTPORT=<DEVICE>]
 	Build
 	Build test
 	Build install
@@ -41,31 +41,35 @@ Or, if you're on a platform (like DOS or Windows) that doesn't require the "./" 
 
 If instead you are relying on ExtUtils::MakeMaker then run the following commands:
 
-	perl Makefile.PL
+	perl Makefile.PL [TESTPORT=<DEVICE>]
 	make
 	make test
 	make install
+
+If Win32::SerialPort or Device::SerialPort are installed on the target system, the optional [TESTPORT=<DEVICE>] allows a serial port name to be manually specified for testing the Serial port constructor of Control::CLI, where <DEVICE> can be any of COM1, /dev/ttyS0, etc..
+If no serial port is specified via the optional [TESTPORT=<DEVICE>] (e.g. if installing via cpan shell) and Win32::SerialPort or Device::SerialPort are installed on the target system, then the test script will attempt to automatically detect an available serial port to use; however if this detection fails then the serial port constructor tests will simply be skipped. 
+
 
 SUPPORT AND DOCUMENTATION
 
 After installing, you can find documentation for this module with the
 perldoc command.
 
-    perldoc Conrol::CLI
+    perldoc Control::CLI
 
 You can also look for information at:
 
     RT, CPAN's request tracker
-        http://rt.cpan.org/NoAuth/Bugs.html?Dist=Conrol-CLI
+        http://rt.cpan.org/NoAuth/Bugs.html?Dist=Control-CLI
 
     AnnoCPAN, Annotated CPAN documentation
-        http://annocpan.org/dist/Conrol-CLI
+        http://annocpan.org/dist/Control-CLI
 
     CPAN Ratings
-        http://cpanratings.perl.org/d/Conrol-CLI
+        http://cpanratings.perl.org/d/Control-CLI
 
     Search CPAN
-        http://search.cpan.org/dist/Conrol-CLI/
+        http://search.cpan.org/dist/Control-CLI/
 
 
 LICENSE AND COPYRIGHT

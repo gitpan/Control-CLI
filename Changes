@@ -3,3 +3,8 @@ Revision history for Control-CLI
 1.00    2011-03-27
         First version, released on an unsuspecting world.
 
+1.01    2011-04-03
+	Module installation test script now requires (build_requires) Net::Telnet
+	Chaged test script for detection of Serial port under unix which was not working on most Linux systems
+	Ported Device::SerialPort ability to manually specify a TESTPORT=<DEVICE> when running Makefile.PL/Build.PL
+	Added use of Exporter module for optionally importing class methods
