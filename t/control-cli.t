@@ -5,7 +5,7 @@ use strict;
 use Test::More tests => 6;
 
 BEGIN {
-    use_ok( 'Control::CLI' ) || print "Bail out!";
+	use_ok( 'Control::CLI' ) || print "Bail out!";
 }
 
 # To manually set the a Serial port to test with, can edit these lines
@@ -18,9 +18,16 @@ if ( !$serial_port && eval { require DefaultPort } && $DefaultPort::Serial_Test_
 	$serial_port = $DefaultPort::Serial_Test_Port;
 }
 
-my ($cli, $testcli, $serialPortUndetected);
+my ($modules, $cli, $testcli, $serialPortUndetected);
 
-diag( "Testing Control::CLI $Control::CLI::VERSION" );
+$modules =	((Control::CLI::useTelnet) ? 'Net::Telnet, ':'').
+		((Control::CLI::useSsh)    ? 'Net::SSH2, ':'').
+		((Control::CLI::useSerial) ? ($^O eq 'MSWin32' ? 'Win32::SerialPort, ':'Win32::SerialPort, '):'');
+chop $modules; # trailing space
+chop $modules; # trailing comma
+
+diag "Testing Control::CLI $Control::CLI::VERSION";
+diag "Available modules to test with: $modules";
 
 SKIP: {
 	skip "Net::Telnet not installed, skipping Telnet constructor test", 1 unless Control::CLI::useTelnet;
@@ -41,7 +48,7 @@ SKIP: {
 SKIP: {
 	skip "Win32::SerialPort not installed, skipping Serial constructor test", 1 unless Control::CLI::useSerial;
 	unless ($serial_port) {	# Try and detect serial port to use
-		if ($^O eq 'MSWin32') { # On Windows
+		if ($^O eq 'MSWin32') { # On Windows easy, use the registry
 			unless (eval {require Win32::TieRegistry}) {
 				$serialPortUndetected = 1;
 				skip "Cannot make out available serial ports for Serial constructor test", 1;
@@ -58,7 +65,7 @@ SKIP: {
 				last;
 			}
 		}
-		else { # On Unix
+		else { # On Unix, just try the usual /dev/ttyS? ones...
 			my @devttys = glob '/dev/ttyS?';
 			if (@devttys && eval {require POSIX}) {
 				foreach my $port (@devttys) {
@@ -66,7 +73,7 @@ SKIP: {
 						my $tryport = $1;
 						my $fd = POSIX::open($tryport, &POSIX::O_RDWR | &POSIX::O_NOCTTY | &POSIX::O_NONBLOCK);
 						my $to = POSIX::Termios->new();
-						if ( $to->getattr($fd) ) {
+						if ( $to && $fd && $to->getattr($fd) ) {
 							$serial_port = $tryport;
 							last;
 						}
@@ -78,14 +85,17 @@ SKIP: {
 				skip "Cannot make out available serial ports for Serial constructor test", 1;
 			}
 		}
+		diag "Serial Port detected for testing Serial constructor with: $serial_port";
 	}
 	# Create the object instance for Serial
 	$testcli = new Control::CLI(Use => $serial_port, Errmode => 'return');
 	ok( defined $testcli, "Testing constructor for Serial Port (using $serial_port)" );
 	$cli = $testcli if defined $testcli;
 }
-diag "NOTE: Could not detect a serial port for serial port constructor test, so this was skipped; to manually specify a serial port to use, run 'perl <Build.PL|Makefile.PL> TESTPORT=<DEVICE>'" if $serialPortUndetected;
-
+if ($serialPortUndetected) {
+	diag "Skipped serial port constructor test as no serial port detected";
+	diag "- can manually set one with 'perl <Build.PL|Makefile.PL> TESTPORT=<DEVICE>'";
+}
 
 ok( defined $cli, "Testing constructor for either Telnet/SSH/Serial" );
 isa_ok($cli, 'Control::CLI');

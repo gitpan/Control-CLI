@@ -8,7 +8,7 @@ use Term::ReadKey;
 use Time::HiRes;
 
 my $Package = "Control::CLI";
-our $VERSION = '1.01';
+our $VERSION = '1.02';
 our %EXPORT_TAGS = (
 		use	=> [qw(useTelnet useSsh useSerial)],
 		prompt	=> [qw(promptClear promptHide)],
@@ -381,7 +381,7 @@ sub connect {	# Connect to host
 			$self->{PASSPHRASE} = $args{passphrase} if $args{passphrase};
 			$self->{USERNAME} = $args{username};
 		}
-		else { # Use password authentication unless already authenticated above 
+		else { # Use password authentication unless already authenticated above
 			$self->{PARENT}->auth_password($args{username}, $args{password})
 				or return $self->error("$pkgsub SSH unable to password authenticate");
 			# Store credentials used
@@ -726,7 +726,7 @@ sub input_log { # Log to file all input sent to host
 
 	if ($self->{TYPE} eq 'TELNET') { # For Telnet use methods provided by Net::Telnet
 		$fh = $self->{PARENT}->input_log($fh);
-		if ($self->{PARENT}->errmsg =~ /problem creating $fh: (.*)/) {
+		if (defined $fh && $self->{PARENT}->errmsg =~ /problem creating $fh: (.*)/) {
 			return $self->error("$pkgsub Unable to open input log file: $1");
 		}
 		return $fh;
@@ -754,7 +754,7 @@ sub output_log { # Log to file all output received from host
 
 	if ($self->{TYPE} eq 'TELNET') { # For Telnet use methods provided by Net::Telnet
 		$fh = $self->{PARENT}->output_log($fh);
-		if ($self->{PARENT}->errmsg =~ /problem creating $fh: (.*)/) {
+		if (defined $fh && $self->{PARENT}->errmsg =~ /problem creating $fh: (.*)/) {
 			return $self->error("$pkgsub Unable to open output log file: $1");
 		}
 		return $fh;
@@ -782,7 +782,7 @@ sub dump_log { # Log hex and ascii for both input & output
 
 	if ($self->{TYPE} eq 'TELNET') { # For Telnet use methods provided by Net::Telnet
 		$fh = $self->{PARENT}->dump_log($fh);
-		if ($self->{PARENT}->errmsg =~ /problem creating $fh: (.*)/) {
+		if (defined $fh && $self->{PARENT}->errmsg =~ /problem creating $fh: (.*)/) {
 			return $self->error("$pkgsub Unable to open dump log file: $1");
 		}
 		return $fh;
@@ -2119,7 +2119,7 @@ The following class methods should therefore be called using their fully qualifi
 	# Import promptClear & promptHide
 	use Control::CLI (:prompt);
 
-	# Import arseMethodArgs suppressMethodArgs
+	# Import parseMethodArgs suppressMethodArgs
 	use Control::CLI (:args);
 
 	# Import just passphraseRequired

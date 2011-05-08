@@ -15,10 +15,10 @@ name: Control-CLI
 provides:
   Control::CLI:
     file: lib/Control/CLI.pm
-    version: 1.01
+    version: 1.02
 requires:
   Term::ReadKey: 0
   Time::HiRes: 0
 resources:
   license: http://dev.perl.org/licenses/
-version: 1.01
+version: 1.02

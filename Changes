@@ -8,3 +8,7 @@ Revision history for Control-CLI
 	Chaged test script for detection of Serial port under unix which was not working on most Linux systems
 	Ported Device::SerialPort ability to manually specify a TESTPORT=<DEVICE> when running Makefile.PL/Build.PL
 	Added use of Exporter module for optionally importing class methods
+
+1.02    2011-05-08
+	Still a few linux systems where my serial port detection failed; modified the test script
+	Corrected uninitialized $fh warning in input_log, output_log, dump_log when no argument and telnet connection 
