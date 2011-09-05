@@ -8,7 +8,7 @@ use Term::ReadKey;
 use Time::HiRes;
 
 my $Package = "Control::CLI";
-our $VERSION = '1.02';
+our $VERSION = '1.03';
 our %EXPORT_TAGS = (
 		use	=> [qw(useTelnet useSsh useSerial)],
 		prompt	=> [qw(promptClear promptHide)],
@@ -248,8 +248,9 @@ sub new {
 		USERNAME		=>	undef,
 		PASSWORD		=>	undef,
 		PASSPHRASE		=>	undef,
-		LOGINSTAGE		=>	0,
+		LOGINSTAGE		=>	'',
 		LASTPROMPT		=>	undef,
+		SERIALEOF		=>	1,
 		timeout			=>	$Default{timeout},
 		blocking		=>	$Default{blocking},
 		return_reference	=>	$Default{return_reference},
@@ -414,6 +415,7 @@ sub connect {	# Connect to host
 		$self->{PARITY}	= $args{parity};
 		$self->{DATABITS} = $args{databits};
 		$self->{STOPBITS} = $args{stopbits};
+		$self->{SERIALEOF} = 0;
 	}
 	else {
 		return $self->error("$pkgsub Invalid connection mode");
@@ -462,9 +464,9 @@ sub readwait { # Read in data initially in blocking mode, then perform subsequen
 	};
 	# Then keep reading until there is nothing more to read..
 	while ($ticks++ < $readAttempts) {
-		sleep($PollWaitTimer/1000); # Fraction of a sec sleep using Time::HiRes::sleep
+		Time::HiRes::sleep($PollWaitTimer/1000); # Fraction of a sec sleep using Time::HiRes::sleep
 		$bufref = $self->_read_nonblocking($pkgsub, 1) or return $self->error($pkgsub.$self->errmsg);
-		if (defined $$bufref && length($$bufref)) {
+		if (defined $bufref && length($$bufref)) {
 			$buffer .= $$bufref;
 			$ticks = 0; # Reset ticks to zero upon successful read
 		}
@@ -804,12 +806,32 @@ sub dump_log { # Log hex and ascii for both input & output
 }
 
 
+sub eof { # End-Of-File indicator
+	my $pkgsub = "${Package}-eof:";
+	my $self = shift;
+
+	if ($self->{TYPE} eq 'TELNET') {
+		return $self->{PARENT}->eof;
+	}
+	elsif ($self->{TYPE} eq 'SSH') {
+		return $self->{SSHCHANNEL}->eof;
+	}
+	elsif ($self->{TYPE} eq 'SERIAL') {
+		return $self->{SERIALEOF};
+	}
+	else {
+		return $self->error("$pkgsub Invalid connection mode");
+	}
+	return 1;
+}
+
+
 sub disconnect { # Disconnect from host
 	my $pkgsub = "${Package}-disconnect:";
 	my $self = shift;
 
 	$self->{BUFFER} = undef;
-	$self->{LOGINSTAGE} = undef;
+	$self->{LOGINSTAGE} = '';
 	if ($self->{TYPE} eq 'TELNET') {
 		$self->{PARENT}->close;
 		$self->{TCPPORT} = undef;
@@ -826,6 +848,7 @@ sub disconnect { # Disconnect from host
 		$self->{PARITY} = undef;
 		$self->{DATABITS} = undef;
 		$self->{STOPBITS} = undef;
+		$self->{SERIALEOF} = 1;
 	}
 	else {
 		return $self->error("$pkgsub Invalid connection mode");
@@ -1125,7 +1148,7 @@ sub _read_nonblocking { # Internal read method; if no data available return imme
 	}
 	elsif ($self->{TYPE} eq 'SSH') {
 		$self->{SSHCHANNEL}->read($buffer, $self->{read_block_size});
-		if ($buffer) {
+		if (length $buffer) {
 			_log_print($self->{INPUTLOGFH}, \$buffer) if defined $self->{INPUTLOGFH};
 			_log_dump('<', $self->{DUMPLOGFH}, \$buffer) if defined $self->{DUMPLOGFH};
 		}
@@ -1134,7 +1157,7 @@ sub _read_nonblocking { # Internal read method; if no data available return imme
 		my $inBytes;
 		$self->{PARENT}->read_const_time(1); # Set timeout to nothing (1ms; Win32::SerialPort does not like 0)
 		($inBytes, $buffer) = $self->{PARENT}->read($self->{read_block_size});
-		if ($buffer) {
+		if (length $buffer) {
 			_log_print($self->{INPUTLOGFH}, \$buffer) if defined $self->{INPUTLOGFH};
 			_log_dump('<', $self->{DUMPLOGFH}, \$buffer) if defined $self->{DUMPLOGFH};
 		}
@@ -1758,6 +1781,15 @@ To stop logging, use an empty string as the argument.
 This method starts or stops logging of both input and output. The information is displayed both as a hex dump as well as in printable ascii. This is useful when debugging.
 If no argument is given, the log filehandle is returned. An empty string indicates logging is off. If an open filehandle is given, it is used for logging and returned. Otherwise, the argument is assumed to be the name of a file, the file is opened for logging and a filehandle to it is returned. If the file can't be opened for writing, the error mode action is performed.
 To stop logging, use an empty string as the argument.
+
+
+=item B<eof> - end-of-file indicator
+
+  $eof = $obj->eof;
+
+This method returns a true (1) value if the end of file has been read. When this is true, the general idea is that you can still read but you won't be able to write.
+This method simply exposes the method by the same name provided by both Net::Telnet and Net::SSH2::Channel.
+In the case of a serial connection this module simply returns eof true before a connection is established and after the connection is closed.
 
 
 =item B<disconnect> - disconnect from host

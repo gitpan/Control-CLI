@@ -12,3 +12,9 @@ Revision history for Control-CLI
 1.02    2011-05-08
 	Still a few linux systems where my serial port detection failed; modified the test script
 	Corrected uninitialized $fh warning in input_log, output_log, dump_log when no argument and telnet connection 
+
+1.03    2011-08-24
+	Implemented eof method
+	Corrected sleep timer in readwait() which was doing non-blocking reads much faster than 0.1 seconds intervals
+	Corrected read() which was not logging to input/dump logs in non-blocking mode for SSH & Serial, if read buffer was "0"
+	Login stage variable was not re-initialized correctly after a disconnect(); could cause errors on subsequent login()

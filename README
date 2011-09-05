@@ -14,6 +14,8 @@ To do so, Control::CLI relies on these underlying modules:
       Net::SSH2 for SSH access
       Win32::SerialPort or Device::SerialPort for Serial port access respectively on Windows and Unix systems
 
+Since all of the above are Perl standalone modules (which do not need to rely on external binaries) scripts using Control::CLI can easily be ported to any OS platform (where either Perl is installed or by simply packaging the Perl script into an executable with PAR::Packer's pp). In particular this is a big advantage for portability to Windows platforms where using Expect scripts is usually not possible.
+
 Note that Net::SSH2 only supports SSHv2 and this class will always and only use Net::SSH2 to establish a channel over which an interactive shell is established with the remote host. This is typically the only way that SSH is implemented on ethernet switches and IP routers and other appliances. Both password and publickey authentication are supported.
 
 Each of the above modules is optional (they are not required to install Control::CLI), however if one of the modules is missing then no access of that type will be available. For instance if Win32::SerialPort is not installed (on a Windows system) but both Net::Telnet and Net::SSH2 are, then Control::CLI will be able to operate over both Telnet and SSH, but not Serial port. There has to be, however, at least one of the above modules installed, otherwise Control::CLI's constructor will throw an error.
