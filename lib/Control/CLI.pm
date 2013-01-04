@@ -8,7 +8,7 @@ use Term::ReadKey;
 use Time::HiRes;
 
 my $Package = "Control::CLI";
-our $VERSION = '1.03';
+our $VERSION = '1.04';
 our %EXPORT_TAGS = (
 		use	=> [qw(useTelnet useSsh useSerial)],
 		prompt	=> [qw(promptClear promptHide)],
@@ -24,6 +24,7 @@ my $PollTimer = 100;		# Some connection types require a polling loop; this is th
 my $PollWaitTimer = 100;	# readwait() polling loop timer in millisecs for further input
 my $ComPortReadBuffer = 4096;	# Size of serial port read buffers
 my $ComReadInterval = 100;	# Timeout between single character reads
+my $ComBreakDuration = 300;	# Number of milliseconds the break signal is held for
 
 my %Default = ( # Hash of default object settings which can be modified on a per object basis
 	timeout			=> 10,			# Default Timeout value in secs
@@ -48,8 +49,8 @@ my %Default = ( # Hash of default object settings which can be modified on a per
 	ors			=> "\n",		# Default Output Record Separator used by print() & cmd()
 	errmode			=> 'croak',		# Default error mode; can be: die/croak/return/coderef/arrayref
 	prompt		=> '.*[\?\$%#>]\s?$',		# Default prompt used in login() method
-	username_prompt	=> '(?i:username|login)[: ]*$',	# Default username prompt used in login() method
-	password_prompt	=> '(?i)password[: ]*$',	# Default password prompt used in login() method
+	username_prompt	=> '(?i:username|login)[: ]+$',	# Default username prompt used in login() method
+	password_prompt	=> '(?i)password[: ]+$',	# Default password prompt used in login() method
 	debug		=> 0,				# Default debug level; 0 = disabled
 );
 
@@ -234,6 +235,7 @@ sub new {
 		# Lower Case ones can be set by user; Upper case ones are set internaly in the class
 		TYPE			=>	$connectionType,
 		PARENT			=>	$parent,
+		SSHCHANNEL		=>	undef,
 		BUFFER			=>	undef,
 		COMPORT			=>	$comPort,
 		TCPPORT			=>	undef,
@@ -390,6 +392,7 @@ sub connect {	# Connect to host
 		}
 		$self->{SSHCHANNEL} = $self->{PARENT}->channel();	# Open an SSH channel
 		$self->{PARENT}->blocking(0);				# Make the session non blocking for reads
+		$self->{SSHCHANNEL}->ext_data('merge');			# Merge stderr onto regular channel
 		$self->{SSHCHANNEL}->pty('vt100');			# Start an interactive terminal on remote host
 		$self->{SSHCHANNEL}->shell();				# Start shell on channel
 	}
@@ -466,7 +469,7 @@ sub readwait { # Read in data initially in blocking mode, then perform subsequen
 	while ($ticks++ < $readAttempts) {
 		Time::HiRes::sleep($PollWaitTimer/1000); # Fraction of a sec sleep using Time::HiRes::sleep
 		$bufref = $self->_read_nonblocking($pkgsub, 1) or return $self->error($pkgsub.$self->errmsg);
-		if (defined $bufref && length($$bufref)) {
+		if (defined $$bufref && length($$bufref)) {
 			$buffer .= $$bufref;
 			$ticks = 0; # Reset ticks to zero upon successful read
 		}
@@ -571,15 +574,16 @@ sub printlist { # Send multiple lines to host switch (\n appended)
 sub login { # Handles basic username/password login for Telnet/Serial login
 	my $pkgsub = "${Package}-login:";
 	my $self =shift;
-	my ($output, $outref, $loginAttempted);
+	my ($output, $outref, $outRetRef, $loginAttempted);
 	my @validArgs = ('username', 'password', 'prompt_credentials', 'prompt', 'username_prompt', 'password_prompt',
-		    'timeout', 'errmode');
+		    'timeout', 'errmode', 'return_reference');
 	my %args = parseMethodArgs($pkgsub, \@_, \@validArgs);
 	my $promptCredentials = defined $args{prompt_credentials} ? $args{prompt_credentials} : $self->{prompt_credentials};
 	my $prompt = defined $args{prompt} ? $args{prompt} : $self->{prompt_qr};
 	my $usernamePrompt = defined $args{username_prompt} ? $args{username_prompt} : $self->{username_prompt_qr};
 	my $passwordPrompt = defined $args{password_prompt} ? $args{password_prompt} : $self->{password_prompt_qr};
 	my $timeout = defined $args{timeout} ? $args{timeout} : $self->{timeout};
+	my $returnRef = defined $args{return_reference} ? $args{return_reference} : $self->{return_reference};
 	my $errmode = defined $args{errmode} ? parse_errmode($pkgsub, $args{errmode}) : undef;
 	local $self->{errmode} = $errmode if defined $errmode;
 
@@ -600,6 +604,8 @@ sub login { # Handles basic username/password login for Telnet/Serial login
 	do {{
 		$outref = $self->_read_blocking($pkgsub, $timeout, 1) or return $self->error($pkgsub.$self->errmsg);
 		$output .= $$outref;
+		# Preserve device login output if requested by caller
+		$$outRetRef .= $$outref if wantarray;
 
 		if ($output =~ /$usernamePrompt/) { # Handle username prompt
 			return $self->error("$pkgsub Incorrect Username or Password") if $loginAttempted;
@@ -634,7 +640,7 @@ sub login { # Handles basic username/password login for Telnet/Serial login
 	}} until ($output =~ /($prompt)/);
 	$self->{LASTPROMPT} = $1;
 	($self->{USERNAME}, $self->{PASSWORD}) = ($args{username}, $args{password}) if $loginAttempted;
-	return 1;
+	return wantarray ? (1, $returnRef ? $outRetRef : $$outRetRef) : 1;
 }
 
 
@@ -811,13 +817,44 @@ sub eof { # End-Of-File indicator
 	my $self = shift;
 
 	if ($self->{TYPE} eq 'TELNET') {
-		return $self->{PARENT}->eof;
+		# Re-format Net::Telnet's own method to return 0 or 1
+		return $self->{PARENT}->eof ? 1 : 0;
 	}
 	elsif ($self->{TYPE} eq 'SSH') {
-		return $self->{SSHCHANNEL}->eof;
+		# Make SSH behave as Net::Telnet; return 1 if object created but not yet connected
+		return 1 if defined $self->{PARENT} && !defined $self->{SSHCHANNEL};
+		# Return Net::SSH2's own method if it is true (but it never is & seems not to work...)
+		return 1 if $self->{SSHCHANNEL}->eof;
+		# So we fudge it by checking Net::SSH2's last error code.. 
+		return 1 if $self->{PARENT}->error == -1; # LIBSSH2_ERROR_SOCKET_NONE
+		return 0; # If we get here, return 0
 	}
 	elsif ($self->{TYPE} eq 'SERIAL') {
 		return $self->{SERIALEOF};
+	}
+	else {
+		return $self->error("$pkgsub Invalid connection mode");
+	}
+	return 1;
+}
+
+
+sub break { # Send the break signal
+	my $pkgsub = "${Package}-break:";
+	my $self = shift;
+
+	if ($self->{TYPE} eq 'TELNET') {
+		# Simply return Net::Telnet's implementation
+		$self->{PARENT}->break
+			or return $self->error("$pkgsub Unable to send telnet break signal\n".$self->errmsg);
+	}
+	elsif ($self->{TYPE} eq 'SSH') {
+		# For SSH we just send '~B' and hope that the other end will interpret it as a break
+		$self->put(string => '~B', errmode => 'return')
+			or return $self->error("$pkgsub Unable to send SSH break signal\n".$self->errmsg);
+	}
+	elsif ($self->{TYPE} eq 'SERIAL') {
+		$self->{PARENT}->pulse_break_on($ComBreakDuration);
 	}
 	else {
 		return $self->error("$pkgsub Invalid connection mode");
@@ -838,6 +875,7 @@ sub disconnect { # Disconnect from host
 	}
 	elsif ($self->{TYPE} eq 'SSH') {
 		$self->{SSHCHANNEL}->close;
+		$self->{SSHCHANNEL} = undef;
 		$self->{PARENT}->disconnect();
 		$self->{TCPPORT} = undef;
 	}
@@ -992,7 +1030,7 @@ sub errmsg { # Set/read the last generated error message for the object
 sub debug { # Set/read debug level
 	my ($self, $newSetting) = @_;
 	my $currentSetting = $self->{debug};
-	if (defined $newSetting) {
+	if (defined $newSetting && $newSetting != $currentSetting) {
 		$self->{debug} = $newSetting;
 		if ($self->{TYPE} eq 'SSH') {
 			$self->{PARENT}->debug($newSetting >= 2 ? 1 : 0);
@@ -1010,6 +1048,12 @@ sub debug { # Set/read debug level
 sub parent { # Return the parent object
 	my $self = shift;
 	return $self->{PARENT};
+}
+
+
+sub ssh_channel { # Return the SSH channel object
+	my $self = shift;
+	return $self->{SSHCHANNEL};
 }
 
 
@@ -1103,23 +1147,37 @@ sub _read_blocking { # Internal read method; data must be read or we timeout
 		return $self->error("$pkgsub Received eof from connection") unless defined $buffer;
 	}
 	elsif ($self->{TYPE} eq 'SSH') {
-		my @poll = { handle => $self->{SSHCHANNEL}, events => ['in'] };
-		unless ($self->{PARENT}->poll($timeout*1000, \@poll) && $poll[0]->{revents}->{in}) {
-			return $self->error("$pkgsub SSH connection timeout");
-		}
 		$self->{SSHCHANNEL}->read($buffer, $self->{read_block_size});
+		unless (length $buffer) {
+			return $self->error("$pkgsub Received eof from connection") if $self->eof;
+			my @poll = { handle => $self->{SSHCHANNEL}, events => ['in'] };
+			unless ($self->{PARENT}->poll($timeout*1000, \@poll) && $poll[0]->{revents}->{in}) {
+				return $self->error("$pkgsub SSH connection timeout");
+			}
+			$self->{SSHCHANNEL}->read($buffer, $self->{read_block_size});
+		}
 		_log_print($self->{INPUTLOGFH}, \$buffer) if defined $self->{INPUTLOGFH};
 		_log_dump('<', $self->{DUMPLOGFH}, \$buffer) if defined $self->{DUMPLOGFH};
 	}
 	elsif ($self->{TYPE} eq 'SERIAL') {
 		if ($^O eq 'MSWin32') { # Win32::SerialPort
 			my $inBytes;
-			$self->{PARENT}->read_const_time($timeout * 1000);	# Set timeout in millisecs
+			# Set timeout in millisecs
+			local $SIG{__WARN__} = sub {}; # Disable carp from Win32::SerialPort
+			$self->{PARENT}->read_const_time($timeout == 0 ? 1 : $timeout * 1000) or do {
+				$self->{PARENT}->close;
+				$self->{SERIALEOF} = 1;
+				return $self->error("$pkgsub Unable to read serial port");
+			};
 			($inBytes, $buffer) = $self->{PARENT}->read($self->{read_block_size});
 			return $self->error("$pkgsub Serial Port timeout") unless $inBytes;
 		}
 		else { # Device::SerialPort; we handle polling ourselves
-			$self->{PARENT}->read_const_time($PollTimer); # Wait defined millisecs during every read
+			# Wait defined millisecs during every read
+			$self->{PARENT}->read_const_time($PollTimer) or do {
+				$self->{SERIALEOF} = 1;
+				return $self->error("$pkgsub Unable to read serial port");
+			};
 			my $inBytes;
 			my $ticks = 0;
 			do {
@@ -1155,7 +1213,13 @@ sub _read_nonblocking { # Internal read method; if no data available return imme
 	}
 	elsif ($self->{TYPE} eq 'SERIAL') {
 		my $inBytes;
-		$self->{PARENT}->read_const_time(1); # Set timeout to nothing (1ms; Win32::SerialPort does not like 0)
+		# Set timeout to nothing (1ms; Win32::SerialPort does not like 0)
+		local $SIG{__WARN__} = sub {}; # Disable carp from Win32::SerialPort
+		$self->{PARENT}->read_const_time(1) or do {
+			$self->{PARENT}->close;
+			$self->{SERIALEOF} = 1;
+			return $self->error("$pkgsub Unable to read serial port");
+		};
 		($inBytes, $buffer) = $self->{PARENT}->read($self->{read_block_size});
 		if (length $buffer) {
 			_log_print($self->{INPUTLOGFH}, \$buffer) if defined $self->{INPUTLOGFH};
@@ -1251,7 +1315,7 @@ sub _error { # Internal method to perfom error mode action
 	}
 	elsif (ref($mode) eq "ARRAY") {
 		my ($func, @args) = @$mode;
-		&$func(@args);
+		&$func(@args, $errmsg);
 		return;
 	}
 	elsif ($mode eq 'return') { return }
@@ -1663,11 +1727,24 @@ On failure the error mode action is performed. See errmode().
   	[Errmode		=> $errmode,]
   );
 
+  ($ok, $output || $outputRef) = $obj->login(
+  	[Username		=> $username,]
+  	[Password		=> $password,]
+  	[Prompt_credentials	=> $flag,]
+  	[Prompt			=> $prompt,]
+  	[Username_prompt	=> $usernamePrompt,]
+  	[Password_prompt	=> $passwordPrompt,]
+  	[Timeout		=> $secs,]
+  	[Return_reference	=> $flag,]
+  	[Errmode		=> $errmode,]
+  );
+
 This method handles login authentication for Telnet and Serial port access on a generic host (note that for SSH, authentication is part of the connection process).
+In the first form only a success/failure value is returned in scalar context, while in the second form, in list context, both the success/failure value is returned as well as any output received from the host device during the login sequence; the latter is either the output itself or a reference to that output, depending on the object setting of return_reference or the argument override provided in this method.
 For this method to succeed the username & password prompts from the remote host must match the default prompts defined for the object or the overrides specified via the optional "username_prompt" & "password_prompt" arguments. By default these regular expressions are set to:
 
-	'(?i:username|login)[: ]*$'
-	'(?i)password[: ]*$'
+	'(?i:username|login)[: ]+$'
+	'(?i)password[: ]+$'
 
 Following a successful authentication, if a valid CLI prompt is received, the method will return a true (1) value. The expected CLI prompt is either the globally set prompt - see prompt() - or the local override specified with the optional "prompt" argument. By default, the following prompt is expected:
 
@@ -1694,7 +1771,7 @@ This method sends a CLI command to the host and returns once a new CLI prompt is
 Before sending the command to the host, any pending input data from host is read and flushed.
 The CLI prompt expected by the cmd() method is either the prompt defined for the object - see prompt() - or the override defined using the optional "prompt" argument.
 Either a hard reference to the output or the output itself is returned, depending on the setting of return_reference; see return_reference().
-The echoed command is automatically stripped from the output as well as the terminating CLI prompt (the last prompt received from the host device can be obtained with the lastprompt() method).
+The echoed command is automatically stripped from the output as well as the terminating CLI prompt (the last prompt received from the host device can be obtained with the last_prompt() method).
 This means that when sending a command which generates no output, either a null string or a reference pointing to a null string will be returned.
 On I/O failure to the host device, the error mode action is performed. See errmode().
 If output is no longer received from host and no valid CLI prompt has been seen, the method will timeout - see timeout() - and will then perform the error mode action. See errmode().
@@ -1788,8 +1865,16 @@ To stop logging, use an empty string as the argument.
   $eof = $obj->eof;
 
 This method returns a true (1) value if the end of file has been read. When this is true, the general idea is that you can still read but you won't be able to write.
-This method simply exposes the method by the same name provided by both Net::Telnet and Net::SSH2::Channel.
+This method simply exposes the method by the same name provided by Net::Telnet.
+Net::SSH2::Channel also has an eof method but this was not working properly (always returns 0) at the time of implementing the Control::CLI::eof method; so this method adds some logic to eof for SSH connections: if the SSH eof method returns 1, then that value is returned, otherwise a check is performed on Net::SSH::error and if this returns LIBSSH2_ERROR_SOCKET_NONE then we return an eof of 1; otherwise we return an eof of 0.
 In the case of a serial connection this module simply returns eof true before a connection is established and after the connection is closed.
+
+
+=item B<break> - send the break signal
+
+  $ok = $obj->break;
+
+This method generates the break signal on the underlying connection. The break signal is outside the ASCII character set but has local meaning on some end systems. Over a Serial connection this method calls the underlying pulse_break_on($milliseconds) method with duration timer set to 300ms. Over a Telnet connection this method simply exposes the method by the same name provided by Net::Telnet. Over an SSH connection this method sends '~B' over the open channel though it is not clear whether Net::SSH2 or the libssh2 libraries actually support this; it is hoped that the receiving end accepts this as a break signal.  
 
 
 =item B<disconnect> - disconnect from host
@@ -1824,7 +1909,7 @@ This method gets or sets the action used when errors are encountered using the o
 When mode is 'die' or 'croak' and an error is encountered using the object, then an error message is printed to standard error and the program dies. The difference between 'die' and 'croak' is that 'die' will report the line number in this class while 'croak' will report the line in the calling program using this class.
 When mode is 'return' then the method generating the error places an error message in the object and returns an undefined value in a scalar context and an empty list in list context. The error message may be obtained using errmsg(). 
 When mode is a $coderef, then when an error is encountered &$coderef is called with the error message as its first argument. Using this mode you may have your own subroutine handle errors. If &$coderef itself returns then the method generating the error returns undefined or an empty list depending on context.
-When mode is an $arrayref, the first element of the array must be a &$coderef. Any elements that follow are the arguments to &$coderef. When an error is encountered, the &$coderef is called with its arguments. Using this mode you may have your own subroutine handle errors. If the &$coderef itself returns then the method generating the error returns undefined or an empty list depending on context.
+When mode is an $arrayref, the first element of the array must be a &$coderef. Any elements that follow are the arguments to &$coderef. When an error is encountered, the &$coderef is called with its arguments and the error message appended as the last argument. Using this mode you may have your own subroutine handle errors. If the &$coderef itself returns then the method generating the error returns undefined or an empty list depending on context.
 A warning is printed to STDERR when attempting to set this attribute to something that's not 'die', 'croak', 'return', a $coderef, or an $arrayref whose first element isn't a $coderef.
 
 
@@ -2009,31 +2094,7 @@ The following debug levels are defined:
 
 Since there are discrepancies in the way that parent Net::Telnet, Net::SSH2 and Win32/Device::SerialPort bless their object in their respective constructors, the Control::CLI class blesses it's own object. The actual parent object is thus stored internally in the Control::CLI class. Normally this should not be a problem since the Control::CLI class is supposed to provide a common layer regardless of whether the underlying class is either Net::Telnet, Net::SSH2 and Win32/Device::SerialPort and there should be no need to access any of the parent class methods directly.
 However, exceptions exist. If there is a need to access a parent method directly then the parent object is required. This method returns the parent object.
-So, for instance, if you wanted to send a telnet break character (which is specific to telnet only) this is how you would call the relevant Net::Telnet method from a Control::CLI object:
-
-	use Control::CLI;
-	# Create the object instance for Telnet
-	$cli = new Control::CLI('TELNET');
-	# Connect to host
-	$cli->connect('hostname');
-	# Perform login
-	$cli->login(	Username	=> $username,
-			Password	=> $password,
-		   );
-	# Send a command and read the resulting output
-	$outref = $cli->cmd("command");
-	print $$outerf;
-
-	[...]
-
-	# Send telnet break character using Net::Telnet 's own method
-	$cli->parent->break;
-
-	[...]
-
-	$cli->disconnect;
-
-Another example is if you wanted to change the Win32::SerialPort read_interval (by default set to 100 in Control::CLI) and which is not implemented in Device::SerialPort.
+So, for instance, if you wanted to change the Win32::SerialPort read_interval (by default set to 100 in Control::CLI) and which is not implemented in Device::SerialPort.
 
 	use Control::CLI;
 	# Create the object instance for Serial
@@ -2051,6 +2112,13 @@ Another example is if you wanted to change the Win32::SerialPort read_interval (
 	[...]
 
 	$cli->disconnect;
+
+
+=item B<ssh_channel> - return ssh channel object
+
+  $channel_obj = $obj->ssh_channel;
+
+When running an SSH connection a Net::SSH2 object is created as well as a channel object. Both are stored internally in the Control::CLI class. The SSH2 object can be obtained using the above parent method. This method returns the SSH channel object.
 
 
 =item B<connection_type> - return connection type for object

@@ -54,7 +54,10 @@ WriteMakefile(
 		'Term::ReadKey'	=> 0,
 		'Time::HiRes'	=> 0,
 	},
-	BUILD_REQUIRES	=> { 'Net::Telnet' => 0 },
+	BUILD_REQUIRES	=> {
+		'Net::Telnet'		=> 0,
+		'IO::Interactive'	=> 0,
+	},
 	dist		=> { COMPRESS => 'gzip -9f', SUFFIX => 'gz', },
 	clean		=> { FILES => 'Control-CLI-*' },
 );

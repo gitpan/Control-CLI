@@ -14,7 +14,20 @@ Revision history for Control-CLI
 	Corrected uninitialized $fh warning in input_log, output_log, dump_log when no argument and telnet connection 
 
 1.03    2011-08-24
-	Implemented eof method
+	Implemented eof() method
 	Corrected sleep timer in readwait() which was doing non-blocking reads much faster than 0.1 seconds intervals
 	Corrected read() which was not logging to input/dump logs in non-blocking mode for SSH & Serial, if read buffer was "0"
 	Login stage variable was not re-initialized correctly after a disconnect(); could cause errors on subsequent login()
+
+1.04    2013-01-04
+	Reversed a change made in 1.03 under readwait, older versions of Perl generate a warning when doing length(undef)
+	Net-SSH2's eof does not seem to work; modified eof method to make it behave consistently for both Telnet & SSH
+	SSH stderr is now merged onto regular channel; using Net-SSH2 ext_data('merge') call
+	Implemented ssh_channel() method to be able to return underlying SSH channel object
+	Module now detects errors from SerialPort's read_const_time used before reads and updates eof
+	When errmode() is set to $arrayref the error message is now appended as the last argument to &$coderef
+	Added an interactive mode to the test script so that a connection to a device can be easily tested after installation
+	Enhanced alternatve form of login() method allows login sequence/banner to be captured and returned
+	Modified default login/password prompts expected by login() method
+	Implemented break() method
+	No more calls to debug() method when the debug level is not changed; elimintes carping from Device::SerialPort

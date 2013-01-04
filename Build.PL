@@ -46,7 +46,10 @@ my $build = Module::Build->new(
 			'Term::ReadKey' => 0,
 			'Time::HiRes'	=> 0,
 		},
-		build_requires => { 'Net::Telnet' => 0 },
+		build_requires => {
+			'Net::Telnet'		=> 0,
+			'IO::Interactive'	=> 0,
+		},
 		configure_requires => { 'Module::Build' => 0.36 },
 	);
 $build->create_build_script;
