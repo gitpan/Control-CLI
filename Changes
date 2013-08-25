@@ -4,30 +4,43 @@ Revision history for Control-CLI
         First version, released on an unsuspecting world.
 
 1.01    2011-04-03
-	Module installation test script now requires (build_requires) Net::Telnet
-	Chaged test script for detection of Serial port under unix which was not working on most Linux systems
-	Ported Device::SerialPort ability to manually specify a TESTPORT=<DEVICE> when running Makefile.PL/Build.PL
-	Added use of Exporter module for optionally importing class methods
+	* Module installation test script now requires (build_requires) Net::Telnet
+	* Changed test script for detection of Serial port under unix which was not working on most Linux systems
+	* Ported Device::SerialPort ability to manually specify a TESTPORT=<DEVICE> when running Makefile.PL/Build.PL
+	* Added use of Exporter module for optionally importing class methods
 
 1.02    2011-05-08
-	Still a few linux systems where my serial port detection failed; modified the test script
-	Corrected uninitialized $fh warning in input_log, output_log, dump_log when no argument and telnet connection 
+	* Still a few Linux systems where my serial port detection failed; modified the test script
+	* Corrected uninitialized $fh warning in input_log, output_log, dump_log when no argument and telnet connection 
 
 1.03    2011-08-24
-	Implemented eof() method
-	Corrected sleep timer in readwait() which was doing non-blocking reads much faster than 0.1 seconds intervals
-	Corrected read() which was not logging to input/dump logs in non-blocking mode for SSH & Serial, if read buffer was "0"
-	Login stage variable was not re-initialized correctly after a disconnect(); could cause errors on subsequent login()
+	* Implemented eof() method
+	* Corrected sleep timer in readwait() which was doing non-blocking reads much faster than 0.1 seconds intervals
+	* Corrected read() which was not logging to input/dump logs in non-blocking mode for SSH & Serial, if read buffer was "0"
+	* Login stage variable was not re-initialized correctly after a disconnect(); could cause errors on subsequent login()
 
 1.04    2013-01-04
-	Reversed a change made in 1.03 under readwait, older versions of Perl generate a warning when doing length(undef)
-	Net-SSH2's eof does not seem to work; modified eof method to make it behave consistently for both Telnet & SSH
-	SSH stderr is now merged onto regular channel; using Net-SSH2 ext_data('merge') call
-	Implemented ssh_channel() method to be able to return underlying SSH channel object
-	Module now detects errors from SerialPort's read_const_time used before reads and updates eof
-	When errmode() is set to $arrayref the error message is now appended as the last argument to &$coderef
-	Added an interactive mode to the test script so that a connection to a device can be easily tested after installation
-	Enhanced alternatve form of login() method allows login sequence/banner to be captured and returned
-	Modified default login/password prompts expected by login() method
-	Implemented break() method
-	No more calls to debug() method when the debug level is not changed; elimintes carping from Device::SerialPort
+	* Reversed a change made in 1.03 under readwait, older versions of Perl generate a warning when doing length(undef)
+	* Net-SSH2's eof does not seem to work; modified eof method to make it behave consistently for both Telnet & SSH
+	* SSH stderr is now merged onto regular channel; using Net-SSH2 ext_data('merge') call
+	* Implemented ssh_channel() method to be able to return underlying SSH channel object
+	* Module now detects errors from SerialPort's read_const_time used before reads and updates eof
+	* When errmode() is set to $arrayref the error message is now appended as the last argument to &$coderef
+	* Added an interactive mode to the test script so that a connection to a device can be easily tested after installation
+	* Enhanced alternative form of login() method allows login sequence/banner to be captured and returned
+	* Modified default login/password prompts expected by login() method
+	* Implemented break() method
+	* No more calls to debug() method when the debug level is not changed; eliminates carping from Device::SerialPort
+
+1.05    2013-08-25
+	* As of this version, Telnet & SSH connections can now be run over IPv6, as long as IO::Socket::IP is installed
+	* SSH failed connection now gives error message "SSH unable to connect" instead of "SSH unable to password authenticate"
+	* Net-SSH2 (libssh2) eof still not working, and now returning a different error on disconnection; updated eof method
+	* Some devices have a crude SSH implementation with no authentication and instead use an interactive login after the SSH
+	  connection is established (just like Telnet does); the connect() method is now changed to allow these SSH connections
+	* Added connection_timeout for Telnet and SSH connections; previously no consistent connection timeout was enforced
+	* Method connect() now accepts '$host [$port]' which will work for IPv6 addresses; syntax '$host[:$port]' is deprecated
+	* Serial port disconnect() now flushes recent writes before closing the connection; needed with Device::SerialPort
+	* Method waitfor() now catches invalid Perl regular expression patterns passed to it and performs the error mode action
+	* Added a flush_credentials method to undefine stored credentials
+	* Code changes to pass Perl Critic severity 4 and above violations

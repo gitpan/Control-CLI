@@ -1,5 +1,5 @@
 ---
-abstract: 'Command Line Interface I/O via any of Telnet, SSH or Serial port'
+abstract: 'Command Line Interface I/O over either Telnet or SSH (IPv4 & IPv6) or Serial port'
 author:
   - 'Ludovico Stevens <lstevens@cpan.org>'
 build_requires:
@@ -7,7 +7,8 @@ build_requires:
   Net::Telnet: 0
 configure_requires:
   Module::Build: 0.36
-generated_by: 'Module::Build version 0.3624'
+dynamic_config: 1
+generated_by: 'Module::Build version 0.4003, CPAN::Meta::Converter version 2.120921'
 license: perl
 meta-spec:
   url: http://module-build.sourceforge.net/META-spec-v1.4.html
@@ -16,10 +17,12 @@ name: Control-CLI
 provides:
   Control::CLI:
     file: lib/Control/CLI.pm
-    version: 1.04
+    version: 1.05
 requires:
+  IO::Handle: 0
+  IO::Socket::INET: 0
   Term::ReadKey: 0
   Time::HiRes: 0
 resources:
   license: http://dev.perl.org/licenses/
-version: 1.04
+version: 1.05

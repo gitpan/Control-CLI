@@ -43,8 +43,10 @@ my $build = Module::Build->new(
 		module_name => 'Control::CLI',
 		license  => 'perl',
 		requires => {
-			'Term::ReadKey' => 0,
-			'Time::HiRes'	=> 0,
+			'Term::ReadKey' 	=> 0,
+			'Time::HiRes'		=> 0,
+			'IO::Handle'		=> 0,
+			'IO::Socket::INET'	=> 0,
 		},
 		build_requires => {
 			'Net::Telnet'		=> 0,

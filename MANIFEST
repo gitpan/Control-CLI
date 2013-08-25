@@ -6,3 +6,4 @@ MANIFEST
 META.yml
 README
 t/control-cli.t
+META.json

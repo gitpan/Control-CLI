@@ -9,33 +9,34 @@ use IO::Interactive qw(is_interactive);
 ############################################################
 # Overrides can be specified for variables in this section #
 ############################################################
-my $serial_port		= '';		# To manually set the a Serial port to test with; e.g 'COM1', '/dev/ttyS0'
-my $testMultiple	= 1;		# Set to 0 if you only want to test against one device
-my $connectionType	;
-my $timeout		= 10;		# seconds
-my $errmode		= 'return';	# always return, so we check outcome in this test script
-my $inputLog		;# = 'control-cli.t.in';
-my $outputLog		;# = 'control-cli.t.out';
-my $dumpLog		;# = 'control-cli.t.dump';
-my $host		;
-my $tcpPort		;
-my $username		;
-my $password		;
-my $publicKeyPath	;# = 'C:\Documents and Settings\<user>\.ssh\id_dsa.pub';	# '/export/home/<user>/.ssh/id_dsa.pub'
-my $privateKeyPath	;# = 'C:\Documents and Settings\<user>\.ssh\id_dsa';		# '/export/home/<user>/.ssh/id_dsa'
-my $passphrase		;
-my $baudrate		;# = 9600;
-my $databits		= 8;	
-my $parity		= 'none';	
-my $stopbits		= 1;
-my $handshake		= 'none';
-my $promptCredentials	= 1;		# Test the module prompting for username/password 
-my $debug		= 0;
+my $SeriaPort		= '';		# To manually set the a Serial port to test with; e.g 'COM1', '/dev/ttyS0'
+my $TestMultiple	= 1;		# Set to 0 if you only want to test against one device
+my $ConnectionType	;
+my $Timeout		= 10;		# seconds
+my $ConnectionTimeout	= 15;		# seconds
+my $ErrorMode		= 'return';	# always return, so we check outcome in this test script
+my $InputLog		;# = 'control-cli.t.in';
+my $OutputLog		;# = 'control-cli.t.out';
+my $DumpLog		;# = 'control-cli.t.dump';
+my $Host		;
+my $TcpPort		;
+my $Username		;
+my $Password		;
+my $PublicKeyPath	;# = 'C:\Documents and Settings\<user>\.ssh\id_dsa.pub';	# '/export/home/<user>/.ssh/id_dsa.pub'
+my $PrivateKeyPath	;# = 'C:\Documents and Settings\<user>\.ssh\id_dsa';		# '/export/home/<user>/.ssh/id_dsa'
+my $Passphrase		;
+my $Baudrate		;# = 9600;
+my $Databits		= 8;	
+my $Parity		= 'none';	
+my $Stopbits		= 1;
+my $Handshake		= 'none';
+my $PromptCredentials	= 1;		# Test the module prompting for username/password 
+my $Debug		= 0;
 ############################################################
 
-# If no $serial_port set above, see if one manually specified when running Build.pl or Makefile.pl
-if ( !$serial_port && eval { require DefaultPort } && $DefaultPort::Serial_Test_Port) {
-	$serial_port = $DefaultPort::Serial_Test_Port;
+# If no $SeriaPort set above, see if one manually specified when running Build.pl or Makefile.pl
+if ( !$SeriaPort && eval { require DefaultPort } && $DefaultPort::Serial_Test_Port) {
+	$SeriaPort = $DefaultPort::Serial_Test_Port;
 }
 
 sub prompt { # For interactive testing to prompt user
@@ -43,7 +44,7 @@ sub prompt { # For interactive testing to prompt user
 	my $message = shift;
 	my $default = shift;
 	my $userInput;
-	return if $$varRef;
+	return if $$varRef; # Come out if variable already set
 	print "\n", $message;
 	chomp($$varRef = <STDIN>);
 	print "\n";
@@ -58,7 +59,7 @@ sub prompt { # For interactive testing to prompt user
 }
 
 BEGIN {
-	use_ok( 'Control::CLI' ) || print "Bail out!";
+	use_ok( 'Control::CLI' ) || die "Bail out!";
 }
 
 my $modules =	((Control::CLI::useTelnet) ? 'Net::Telnet, ':'').
@@ -67,9 +68,17 @@ my $modules =	((Control::CLI::useTelnet) ? 'Net::Telnet, ':'').
 chop $modules; # trailing space
 chop $modules; # trailing comma
 
-
 diag "Testing Control::CLI $Control::CLI::VERSION";
 diag "Available modules to test with: $modules";
+
+if (Control::CLI::useTelnet || Control::CLI::useSsh) {
+	if (Control::CLI::useIPv6) {
+		diag "Using IO::Socket::IP ==> IPv4 and IPv6 support";
+	}
+	else {
+		diag "Using IO::Socket::INET ==> IPv4 only (install IO::Socket::IP for IPv6 support)";
+	}
+}
 
 						##############################
 unless (IO::Interactive::is_interactive) {	# Not an interactive session #
@@ -95,7 +104,7 @@ unless (IO::Interactive::is_interactive) {	# Not an interactive session #
 	
 	SKIP: {
 		skip "Win32::SerialPort not installed, skipping Serial constructor test", 1 unless Control::CLI::useSerial;
-		unless ($serial_port) {	# Try and detect serial port to use
+		unless ($SeriaPort) {	# Try and detect serial port to use
 			if ($^O eq 'MSWin32') { # On Windows easy, use the registry
 				unless (eval {require Win32::TieRegistry}) {
 					$serialPortUndetected = 1;
@@ -109,7 +118,7 @@ unless (IO::Interactive::is_interactive) {	# Not an interactive session #
 					skip "Cannot make out available serial ports for Serial constructor test", 1;
 				}
 				foreach( keys %$comports ) {
-					$serial_port = $comports->{$_} if $comports->{$_} =~ /^COM\d$/;
+					$SeriaPort = $comports->{$_} if $comports->{$_} =~ /^COM\d$/;
 					last;
 				}
 			}
@@ -122,22 +131,22 @@ unless (IO::Interactive::is_interactive) {	# Not an interactive session #
 							my $fd = POSIX::open($tryport, &POSIX::O_RDWR | &POSIX::O_NOCTTY | &POSIX::O_NONBLOCK);
 							my $to = POSIX::Termios->new();
 							if ( $to && $fd && $to->getattr($fd) ) {
-								$serial_port = $tryport;
+								$SeriaPort = $tryport;
 								last;
 							}
 						}
 					}
 				}
-				unless ($serial_port) {
+				unless ($SeriaPort) {
 					$serialPortUndetected = 1;
 					skip "Cannot make out available serial ports for Serial constructor test", 1;
 				}
 			}
-			diag "Serial Port detected for testing Serial constructor with: $serial_port";
+			diag "Serial Port detected for testing Serial constructor with: $SeriaPort";
 		}
 		# Create the object instance for Serial
-		$testcli = new Control::CLI(Use => $serial_port, Errmode => 'return');
-		ok( defined $testcli, "Testing constructor for Serial Port (using $serial_port)" );
+		$testcli = new Control::CLI(Use => $SeriaPort, Errmode => 'return');
+		ok( defined $testcli, "Testing constructor for Serial Port (using $SeriaPort)" );
 		$cli = $testcli if defined $testcli;
 	}
 	if ($serialPortUndetected) {
@@ -160,22 +169,24 @@ unless (IO::Interactive::is_interactive) {	# Not an interactive session #
 do {{ # Test loop, we keep testing until user satisfied
 
 	my ($cli, $eof, $returnValue, $cmd);
+	my ($connectionType, $username, $password, $host, $tcpPort, $baudrate)
+	 = ($ConnectionType, $Username, $Password, $Host, $TcpPort, $Baudrate);
 
 	# Test constructor
 	prompt(\$connectionType, "Select connection type to test\n [enter string: telnet|ssh|<COM-port-name>; or just ENTER to end test]\n : ");
 	$cli = new Control::CLI(
-			Use		=> $connectionType,
-		  	Timeout 	=> $timeout,	# optional; default timeout = 10 secs
-			Errmode 	=> $errmode,	# optional; default = 'croak'
-			Input_log	=> $inputLog,
-			Output_log	=> $outputLog,
-			Dump_log	=> $dumpLog,
-			Debug		=> $debug,
+			Use			=> $connectionType,
+		  	Timeout 		=> $Timeout,	# optional; default timeout = 10 secs
+		  	Connection_timeout	=> $ConnectionTimeout,
+			Errmode 		=> $ErrorMode,	# optional; default = 'croak'
+			Input_log		=> $InputLog,
+			Output_log		=> $OutputLog,
+			Dump_log		=> $DumpLog,
+			Debug			=> $Debug,
 		);
 	ok( defined $cli, "Testing constructor for '$connectionType'" );
 	unless (defined $cli) {
 		diag "Probably cannot open serial port provided";
-		$connectionType = undef;
 		redo;
 	}
 
@@ -193,12 +204,24 @@ do {{ # Test loop, we keep testing until user satisfied
 	# Test connection
 	if ($connectionType =~ /^(?i:TELNET|SSH)$/) {
 		if (!defined $host) {
-			prompt(\$host, "Provide an IP|hostname to test with (you will be prompted for commands to execute);\n [[username[:password@]]<host|IP>[:port]; ENTER to end test]\n : ");
-			if ($host =~ /^([^:].*?)?(:(.+?))?@(.+)$/) {
-				($username, $password, $host) = ($1, $3, $4);
+			my $complexInput;
+			prompt(\$host, "Provide an IP|hostname to test with (you will be prompted for commands to execute);\n [[username][:password]@]<host|IP> [port]; ENTER to end test]\n : ");
+			if ($host =~ s/^(.+)@//) {
+				($username, $password) = split(':', $1);
+				undef $username unless length $username;
+				undef $password unless length $password;
+				print "Username = ", $username, "\n" if defined $username;
+				print "Password = ", $password, "\n" if defined $password;
+				$complexInput = 1;
 			}
-			if ($host =~ /^(.+?):(\d+)$/) {
+			if ($host =~ /^(\S+)\s+(\d+)$/) {
 				($host, $tcpPort) = ($1, $2);
+				$complexInput = 1;
+			}
+			if ($complexInput) {
+				print "Host = ", $host, "\n" if defined $host;
+				print "Port = ", $tcpPort, "\n" if defined $tcpPort;
+				print "\n";
 			}
 		}
 	}
@@ -210,20 +233,19 @@ do {{ # Test loop, we keep testing until user satisfied
 			Port			=>	$tcpPort,		# optional, only telnet & ssh
 			Username		=>	$username,		# optional (with PromptCredentials=1 will be prompted for, if required)
 			Password		=>	$password,		# optional (with PromptCredentials=1 will be prompted for, if required)
-			PublicKey		=>	$publicKeyPath,		# optional, only ssh
-			PrivateKey		=>	$privateKeyPath,	# optional, only ssh
-			Passphrase		=>	$passphrase,		# optional, only ssh  (with PromptCredentials=1 will be prompted for, if required)
+			PublicKey		=>	$PublicKeyPath,		# optional, only ssh
+			PrivateKey		=>	$PrivateKeyPath,	# optional, only ssh
+			Passphrase		=>	$Passphrase,		# optional, only ssh  (with PromptCredentials=1 will be prompted for, if required)
 			BaudRate		=>	$baudrate,		# optional, only serial
-			DataBits		=>	$databits,		# optional, only serial
-			Parity			=>	$parity,		# optional, only serial
-			StopBits		=>	$stopbits,		# optional, only serial
-			Handshake		=>	$handshake,		# optional, only serial
-			Prompt_Credentials	=>	$promptCredentials,	# optional, default = 0 (no)
+			DataBits		=>	$Databits,		# optional, only serial
+			Parity			=>	$Parity,		# optional, only serial
+			StopBits		=>	$Stopbits,		# optional, only serial
+			Handshake		=>	$Handshake,		# optional, only serial
+			Prompt_Credentials	=>	$PromptCredentials,	# optional, default = 0 (no)
 		);
 	ok( $returnValue, "Testing connection" );
 	unless ($returnValue) {
 		diag $cli->errmsg;
-		($connectionType, $host, $baudrate) = ();
 		redo;
 	}
 
@@ -231,21 +253,18 @@ do {{ # Test loop, we keep testing until user satisfied
 	$eof = $cli->eof;
 	ok( !$eof, "Testing eof is false after connecting" );
 
-	# Test login
-	if ($connectionType =~ /^(?i:TELNET|SERIAL)$/) {
-		$cli->print if $connectionType eq 'SERIAL';
-		$returnValue = $cli->login(
-				Username		=>	$username,		# optional (with PromptCredentials=1 will be prompted for, if required)
-				Password		=>	$password,		# optional (with PromptCredentials=1 will be prompted for, if required)
-				Prompt_Credentials	=>	$promptCredentials,	# optional, default = 0 (no)
-			);
-		ok( $returnValue, "Testing login" );
-		unless ($returnValue) {
-			diag $cli->errmsg;
-			$cli->disconnect;
-			($connectionType, $host, $baudrate) = ();
-			redo;
-		}
+	# Test login (we do this also for SSH, needed if device accepts SSH connection without authentication; no harm otherwise)
+	$cli->print if $connectionType eq 'SERIAL';
+	$returnValue = $cli->login(
+			Username		=>	$username,		# optional (with PromptCredentials=1 will be prompted for, if required)
+			Password		=>	$password,		# optional (with PromptCredentials=1 will be prompted for, if required)
+			Prompt_Credentials	=>	$PromptCredentials,	# optional, default = 0 (no)
+		);
+	ok( $returnValue, "Testing login" );
+	unless ($returnValue) {
+		diag $cli->errmsg;
+		$cli->disconnect;
+		redo;
 	}
 
 	# Test sending a command
@@ -265,8 +284,6 @@ do {{ # Test loop, we keep testing until user satisfied
 	$eof = $cli->eof;
 	ok( $eof, "Testing eof is true after disconnecting" );
 
-	($connectionType, $host, $baudrate) = ();
-
-}} while ($testMultiple);
+}} while ($TestMultiple);
 
 done_testing();

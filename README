@@ -12,13 +12,16 @@ To do so, Control::CLI relies on these underlying modules:
 
       Net::Telnet for Telnet access
       Net::SSH2 for SSH access
+      IO::Socket::IP for IPv6 support
       Win32::SerialPort or Device::SerialPort for Serial port access respectively on Windows and Unix systems
 
-Since all of the above are Perl standalone modules (which do not need to rely on external binaries) scripts using Control::CLI can easily be ported to any OS platform (where either Perl is installed or by simply packaging the Perl script into an executable with PAR::Packer's pp). In particular this is a big advantage for portability to Windows platforms where using Expect scripts is usually not possible.
+Since all of the above are Perl standalone modules (which do not rely on external binaries) scripts using Control::CLI can easily be ported to any OS platform (where either Perl is installed or by simply packaging the Perl script into an executable with PAR::Packer's pp). This is a big advantage for portability to Windows platforms where using Expect scripts is usually not possible.
+
+Each of the above modules is optional (they are not required to install Control::CLI), however if one of the modules is missing then no access of that type will be available. For instance if Win32::SerialPort is not installed (on a Windows system) but both Net::Telnet and Net::SSH2 are, then Control::CLI will be able to operate over both Telnet and SSH, but not Serial port. There has to be, however, at least one of the Telnet/SSH/SerialPort modules installed, otherwise Control::CLI's constructor will throw an error.
+
+Net::Telnet and Net::SSH2 both natively use IO::Socket::INET which only provides IPv4 support; if however IO::Socket::IP is installed, this class will use it as a drop in replacement to IO::Socket::INET and allow both Telnet and SSH connections to operate over IPv6 as well as IPv4.
 
 Note that Net::SSH2 only supports SSHv2 and this class will always and only use Net::SSH2 to establish a channel over which an interactive shell is established with the remote host. This is typically the only way that SSH is implemented on ethernet switches and IP routers and other appliances. Both password and publickey authentication are supported.
-
-Each of the above modules is optional (they are not required to install Control::CLI), however if one of the modules is missing then no access of that type will be available. For instance if Win32::SerialPort is not installed (on a Windows system) but both Net::Telnet and Net::SSH2 are, then Control::CLI will be able to operate over both Telnet and SSH, but not Serial port. There has to be, however, at least one of the above modules installed, otherwise Control::CLI's constructor will throw an error.
 
 
 
@@ -83,4 +86,3 @@ under the terms of either: the GNU General Public License as published
 by the Free Software Foundation; or the Artistic License.
 
 See http://dev.perl.org/licenses/ for more information.
-
