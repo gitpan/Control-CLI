@@ -22,8 +22,8 @@ my $Host		;
 my $TcpPort		;
 my $Username		;
 my $Password		;
-my $PublicKeyPath	;# = 'C:\Documents and Settings\<user>\.ssh\id_dsa.pub';	# '/export/home/<user>/.ssh/id_dsa.pub'
-my $PrivateKeyPath	;# = 'C:\Documents and Settings\<user>\.ssh\id_dsa';		# '/export/home/<user>/.ssh/id_dsa'
+my $PublicKeyPath	;# = 'C:\Users\<user>\.ssh\id_dsa.pub';	# '/export/home/<user>/.ssh/id_dsa.pub'
+my $PrivateKeyPath	;# = 'C:\Users\<user>\.ssh\id_dsa';		# '/export/home/<user>/.ssh/id_dsa'
 my $Passphrase		;
 my $Baudrate		;# = 9600;
 my $Databits		= 8;	
@@ -44,11 +44,11 @@ sub prompt { # For interactive testing to prompt user
 	my $message = shift;
 	my $default = shift;
 	my $userInput;
-	return if $$varRef; # Come out if variable already set
+	return if defined $$varRef; # Come out if variable already set
 	print "\n", $message;
 	chomp($$varRef = <STDIN>);
 	print "\n";
-	unless ($$varRef) {
+	unless (length $$varRef) {
 		if (defined $default) {
 			$$varRef = $default;
 			return;
@@ -62,9 +62,12 @@ BEGIN {
 	use_ok( 'Control::CLI' ) || die "Bail out!";
 }
 
-my $modules =	((Control::CLI::useTelnet) ? 'Net::Telnet, ':'').
-		((Control::CLI::useSsh)    ? 'Net::SSH2, ':'').
-		((Control::CLI::useSerial) ? ($^O eq 'MSWin32' ? 'Win32::SerialPort, ':'Device::SerialPort, '):'');
+my $modules =	((Control::CLI::useTelnet) ? "Net::Telnet $Net::Telnet::VERSION, ":'').
+		((Control::CLI::useSsh)    ? "Net::SSH2 $Net::SSH2::VERSION, ":'').
+		((Control::CLI::useSerial) ? ($^O eq 'MSWin32' ?
+						"Win32::SerialPort $Win32::SerialPort::VERSION, ":
+						"Device::SerialPort $Device::SerialPort::VERSION, "):
+					      '');
 chop $modules; # trailing space
 chop $modules; # trailing comma
 
@@ -185,8 +188,8 @@ do {{ # Test loop, we keep testing until user satisfied
 			Debug			=> $Debug,
 		);
 	ok( defined $cli, "Testing constructor for '$connectionType'" );
-	unless (defined $cli) {
-		diag "Probably cannot open serial port provided";
+	if (!defined $cli && $connectionType !~ /^(?i:TELNET|SSH)$/) {
+		diag "Cannot open serial port provided";
 		redo;
 	}
 

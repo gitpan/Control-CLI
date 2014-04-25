@@ -44,3 +44,7 @@ Revision history for Control-CLI
 	* Method waitfor() now catches invalid Perl regular expression patterns passed to it and performs the error mode action
 	* Added a flush_credentials method to undefine stored credentials
 	* Code changes to pass Perl Critic severity 4 and above violations
+
+1.06	2014-04-21
+	* Method login() in list context did not return output received from host device if the login failed
+	* Version 1.05 on MSWin32 was not working anymore with newest Net::Telnet 3.04 (due to bug id 94913); added workaround

@@ -11,7 +11,7 @@ use IO::Socket::INET;
 use Errno qw( EINPROGRESS EWOULDBLOCK );
 
 my $Package = "Control::CLI";
-our $VERSION = '1.05';
+our $VERSION = '1.06';
 our %EXPORT_TAGS = (
 		use	=> [qw(useTelnet useSsh useSerial useIPv6)],
 		prompt	=> [qw(promptClear promptHide)],
@@ -347,6 +347,11 @@ sub connect {	# Connect to host
 
 		# Give Socket to Net::Telnet
 		$self->{PARENT}->fhopen($self->{SOCKET}) or return $self->error("$pkgsub unable to open Telnet over socket");
+		if ($^O eq 'MSWin32' && $Net::Telnet::VERSION eq '3.04') {
+			# We need this hack to workaround a bug in newest Net::Telnet 3.04
+			# see Net::Telnet bug report 94913: https://rt.cpan.org/Ticket/Display.html?id=94913 
+			*{$self->{PARENT}}->{net_telnet}->{select_supported} = 1;
+		}
 	}
 	elsif ($self->{TYPE} eq 'SSH') {
 		return $self->error("$pkgsub No SSH host provided") unless defined $args{host};
@@ -645,7 +650,10 @@ sub login { # Handles basic username/password login for Telnet/Serial login
 		$$outRetRef .= $$outref if wantarray;
 
 		if ($output =~ /$usernamePrompt/) { # Handle username prompt
-			return $self->error("$pkgsub Incorrect Username or Password") if $loginAttempted;
+			if ($loginAttempted) {
+				$self->error("$pkgsub Incorrect Username or Password");
+				return wantarray ? (undef, $returnRef ? $outRetRef : $$outRetRef) : undef;
+			}
 			unless ($args{username}) {
 				if ($self->{TYPE} eq 'SSH') { # If an SSH connection, we already have the username
 					$args{username} = $self->{USERNAME};
@@ -653,13 +661,17 @@ sub login { # Handles basic username/password login for Telnet/Serial login
 				else {
 					unless ($promptCredentials) {
 						$self->{LOGINSTAGE} = 'username';
-						return $self->error("$pkgsub Username required");
+						$self->error("$pkgsub Username required");
+						return wantarray ? (undef, $returnRef ? $outRetRef : $$outRetRef) : undef;
 					}
 					$args{username} = promptClear('Username');
 				}
 			}
 			$self->print(line => $args{username}, errmode => 'return')
-				or return $self->error("$pkgsub Unable to send username\n".$self->errmsg);
+				or do {
+					$self->error("$pkgsub Unable to send username\n".$self->errmsg);
+					return wantarray ? (undef, $returnRef ? $outRetRef : $$outRetRef) : undef;
+				};
 			$self->{LOGINSTAGE} = '';
 			$loginAttempted =1;
 			$output = '';
@@ -669,12 +681,16 @@ sub login { # Handles basic username/password login for Telnet/Serial login
 			unless ($args{password}) {
 				unless ($promptCredentials) {
 					$self->{LOGINSTAGE} = 'password';
-					return $self->error("$pkgsub Password required");
+					$self->error("$pkgsub Password required");
+					return wantarray ? (undef, $returnRef ? $outRetRef : $$outRetRef) : undef;
 				}
 				$args{password} = promptHide('Password');
 			}
 			$self->print(line => $args{password}, errmode => 'return')
-				or return $self->error("$pkgsub Unable to send password\n".$self->errmsg);
+				or do {
+					$self->error("$pkgsub Unable to send password\n".$self->errmsg);
+					return wantarray ? (undef, $returnRef ? $outRetRef : $$outRetRef) : undef;
+				};
 			$self->{LOGINSTAGE} = '';
 			$output = '';
 			next;
@@ -1213,7 +1229,7 @@ sub _open_socket { # Internal method to open TCP socket for either Telnet or SSH
 		}
 		return $self->error("$pkgsub unable to connect - $!") if $!;
 	}
-	else { # Use IO::Socket::INET (only IPv4 suport)
+	else { # Use IO::Socket::INET (only IPv4 support)
 		$socket = IO::Socket::INET->new(
 			PeerHost => $host,
 			PeerPort => $service,
