@@ -44,12 +44,13 @@ WriteMakefile(
 	NAME		=> 'Control::CLI',
 	AUTHOR		=> q{Ludovico Stevens <lstevens@cpan.org>},
 	VERSION_FROM	=> 'lib/Control/CLI.pm',
-	ABSTRACT	=> 'Command Line Interface I/O via any of Telnet, SSH or Serial port',
+	ABSTRACT	=> 'Command Line Interface I/O over either Telnet or SSH (IPv4 & IPv6) or Serial port',
 	($extutils_numeric_version >= 6.3002
 		? ('LICENSE'=> 'perl')
 		: ()),
 	PL_FILES	=> {},
 	PREREQ_PM	=> {
+		'Exporter'		=> 0,
 		'Test::More'		=> 0,
 		'Term::ReadKey'		=> 0,
 		'Time::HiRes'		=> 0,

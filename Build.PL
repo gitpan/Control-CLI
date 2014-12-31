@@ -43,6 +43,7 @@ my $build = Module::Build->new(
 		module_name => 'Control::CLI',
 		license  => 'perl',
 		requires => {
+			'Exporter'		=> 0,
 			'Term::ReadKey' 	=> 0,
 			'Time::HiRes'		=> 0,
 			'IO::Handle'		=> 0,

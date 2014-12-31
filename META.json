@@ -27,6 +27,7 @@
       },
       "runtime" : {
          "requires" : {
+            "Exporter" : "0",
             "IO::Handle" : "0",
             "IO::Socket::INET" : "0",
             "Term::ReadKey" : "0",
@@ -37,7 +38,7 @@
    "provides" : {
       "Control::CLI" : {
          "file" : "lib/Control/CLI.pm",
-         "version" : "1.06"
+         "version" : "2.00"
       }
    },
    "release_status" : "stable",
@@ -46,5 +47,5 @@
          "http://dev.perl.org/licenses/"
       ]
    },
-   "version" : "1.06"
+   "version" : "2.00"
 }

@@ -17,12 +17,13 @@ name: Control-CLI
 provides:
   Control::CLI:
     file: lib/Control/CLI.pm
-    version: 1.06
+    version: 2.00
 requires:
+  Exporter: 0
   IO::Handle: 0
   IO::Socket::INET: 0
   Term::ReadKey: 0
   Time::HiRes: 0
 resources:
   license: http://dev.perl.org/licenses/
-version: 1.06
+version: 2.00

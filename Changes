@@ -48,3 +48,26 @@ Revision history for Control-CLI
 1.06	2014-04-21
 	* Method login() in list context did not return output received from host device if the login failed
 	* Version 1.05 on MSWin32 was not working anymore with newest Net::Telnet 3.04 (due to bug id 94913); added workaround
+
+2.00	2014-12-31
+	* As of this version, methods connect(), login(), cmd() and waitfor() support a non-blocking mode for
+	  which they now have a poll method: connect_poll(), login_poll(), cmd_poll() and waitfor_poll()
+	* New generic non-blocking poll() object/class method to poll multiple objects of this class simultaneously
+	* Method waitfor() was incorrectly setting s option on match, i.e. treating string as single line (. matches a newline)
+	* Method change_baudrate() was incorrectly returning undef if the requested baudrate was already set
+	* Error mode 'die' would always show CLI.pm as the die file and not the actual file where the error occurred
+	* Error message for blocking read() timeout was incorrectly reported as "Received eof from connection"
+	* Timer for readwait() method, previously hard coded to 100 millisecs, is now configurable via readwait_timer() method
+	* Method break() now accepts a configurable duration argument for generating break signal over serial port connections
+	* Prompt_credentials now resets Term::ReadKey ReadMode to whatever was in use before calling connect() / login()
+	* Debug levels are now bit based; only bits 1 & 2 are defined in this class; new debugMsg() method for sub-classes
+	* Added a socket method to return the IO::Socket::IP or IO::Socket::INET object
+	* Fixed "Can't call method "ext_data" on an undefined value at Control/CLI.pm line X" which was caused by SSH
+	  connecting to a device that only accepts publickey authentication, with no keys provided
+	* SSH & Serial, methods input_log, output_log and dump_log were not returning the filehandle when called with no arguments
+	* All methods now handle error mode correctly if called before a connection is established or after disconnect
+	* Added a connected() method to check status of connection
+	* Carp messages from Win32::SerialPort are now always suppressed, unless debug level is active on bit1
+	* Method change_baudrate() now can also be used to change Parity, Databits, Stopbits and Handshake settings
+	* Method read(Blocking => 1, Timeout => $secs) using Device::SerialPort was ignoring the Timeout argument
+	* SSH connect() is now able to also handle keyboard-interactive authentication method 
